@@ -16,6 +16,7 @@ use Log;
 
 use Manukn\LaravelProxify\ProxyAux;
 use Manukn\LaravelProxify\Models\ProxyResponse;
+use Illuminate\Http\Request;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ClientException;
 use Manukn\LaravelProxify\Exceptions\MissingClientSecretException;
@@ -24,6 +25,7 @@ class RequestManager
 {
 
     private $uri = null;
+    private $request = null;
     private $method = null;
     private $callMode = null;
     private $clientSecrets = null;
@@ -34,10 +36,11 @@ class RequestManager
      * @param string $callMode
      * @param CookieManager $cookieManager
      */
-    public function __construct($uri, $method, $clientSecrets, $callMode, $cookieManager)
+    public function __construct($uri, Request $request, $clientSecrets, $callMode, $cookieManager)
     {
         $this->uri = $uri;
-        $this->method = $method;
+        $this->method = $request->method();
+        $this->request = $request;
         $this->clientSecrets = $clientSecrets;
         $this->callMode = $callMode;
         $this->cookieManager = $cookieManager;
@@ -151,12 +154,12 @@ class RequestManager
      */
     public static function getResponseContent($response)
     {
-        switch ($response->getHeader('content-type')) {
+        switch ($response->getHeaderLine('content-type')) {
             case 'application/json':
-                return $response->json();
-            case 'text/xml':
-            case 'application/xml':
-                return $response->xml();
+                return json_decode($response->getBody(), true);
+//            case 'text/xml':
+//            case 'application/xml':
+//                return $response->xml();
             default:
                 return $response->getBody();
         }
@@ -182,19 +185,20 @@ class RequestManager
         if ($method === 'GET') {
             $options = array_add($options, 'query', $inputs);
         } else {
-            $options = array_add($options, 'body', $inputs);
+            $contentType = explode(';', $this->request->header('Content-Type'));
+            $contentType = trim($contentType[0]);
+
+            if ($this->request->isJson()) {
+                $options = array_add($options, 'json', $inputs);
+            } else if (Request::matchesType($contentType, 'application/x-www-form-urlencoded')) {
+                $options = array_add($options, 'form_params', $inputs);
+            } else {
+                // TODO add content type to guzzle headers
+                $options = array_add($options, 'body', $inputs);
+            }
         }
 
-        $request = $client->createRequest($method, $uriVal, $options);
-
-
-        try {
-            $response = $client->send($request);
-        } catch (ClientException $ex) {
-            $response = $ex->getResponse();
-        }
-
-        return $response;
+        return $client->request($method, $uriVal, $options);
     }
 
     /**

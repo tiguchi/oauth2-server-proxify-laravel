@@ -15,9 +15,11 @@ namespace Manukn\LaravelProxify;
 use Log;
 
 use Manukn\LaravelProxify\Exceptions\CookieExpiredException;
+use Manukn\LaravelProxify\Exceptions\UnauthorizedException;
 use Manukn\LaravelProxify\Exceptions\ProxyMissingParamException;
 use Manukn\LaravelProxify\Managers\CookieManager;
 use Manukn\LaravelProxify\Managers\RequestManager;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ClientException;
@@ -58,9 +60,10 @@ class Proxy
      * @throws ProxyMissingParamException
      * @throws \Exception
      */
-    public function makeRequest($method, array $inputs, $url)
+    public function makeRequest(Request $request, $url)
     {
         $this->uri = $url;
+        $inputs = $request->all();
 
         //Retrieve the call mode from input parameters
         $this->callMode = $this->getRequestMode($inputs);
@@ -71,27 +74,38 @@ class Proxy
 
         //Read the cookie if exists
         $parsedCookie = null;
+        $isGuestAccess = false;
+        
         if ($this->callMode !== ProxyAux::MODE_SKIP && $this->callMode !== ProxyAux::MODE_LOGIN) {
             try {
                 $parsedCookie = $this->cookieManager->tryParseCookie($this->callMode);
             } catch (CookieExpiredException $ex) {
                 $parsedCookie = $this->getGuestAccessToken($url);
-                
-                if (!$parseCookie) {
+                $isGuestAccess = true;
+
+                if (!$parsedCookie) {
                     if (isset($this->redirectUri) && !empty($this->redirectUri)) {
                         return \Redirect::to($this->redirectUri);
                     }
+
                     throw $ex;
                 }
             }
         }
 
         //Create the new request
-        $requestManager = new RequestManager($this->uri, $method, $this->clientSecrets, $this->callMode, $this->cookieManager);
+        $requestManager = new RequestManager($this->uri, $request, $this->clientSecrets, $this->callMode, $this->cookieManager);
         if ($this->useHeader) {
             $requestManager->enableHeader();
         }
+
         $proxyResponse = $requestManager->executeRequest($inputs, $parsedCookie);
+        
+        if ($isGuestAccess && $proxyResponse['statusCode'] == 401) {
+            Log::warn('Guest access token has expired');
+            $parsedCookie = $this->getGuestAccessToken($url, true);
+            $proxyResponse = $requestManager->executeRequest($inputs, $parsedCookie);
+        }
 
         return $this->setApiResponse($proxyResponse['response'], $proxyResponse['cookie']);
     }
@@ -139,27 +153,31 @@ class Proxy
     /**
      * Tries to retrieve a guest access token for anonymous access, if possible.
      */ 
-    private function getGuestAccessToken($url) {
+    private function getGuestAccessToken($url, $force = false) {
         $hostName = explode('/', $url);
         $hostName = $hostName[0];
         if (!isset($this->clientApiHosts[$hostName])) return null;
         $clientId = $this->clientApiHosts[$hostName];
 
         $success;
-        $accessToken = apcu_fetch(self::CLIENT_ACCESS_TOKEN_CACHE_KEY.'_'.$clientId, $success);
+        $cacheKey = self::CLIENT_ACCESS_TOKEN_CACHE_KEY.'_'.$clientId;
+        $accessToken = apcu_fetch($cacheKey, $success);
         
-        if (!$success || !$accessToken) {
+        if ($force || !$success || !$accessToken) {
             Log::info("Requesting client access token from API for client ID ".$clientId);
             $accessToken = $this->requestClientAccessToken($clientId);
-            Log::info($accessToken);
+            $accessToken = $accessToken[ProxyAux::ACCESS_TOKEN];
+            apcu_store($cacheKey, $accessToken);
         }
+        
+        return $accessToken;
     }
     
     private function requestClientAccessToken($clientId) {
         $tokenUrl = $this->guestAccessTokens[$clientId];
         $clientSecret = $this->clientSecrets[$clientId];
         $client = new Client();
-        $result = $client->post($tokenUrl, [
+        $response = $client->post($tokenUrl, [
             'form_params' => [
                 ProxyAux::CLIENT_ID => $clientId,
                 ProxyAux::CLIENT_SECRET => $clientSecret,
@@ -167,19 +185,13 @@ class Proxy
             ]
         ]);
         
-        try {
-            $response = $client->send($request);
-        } catch (ClientException $ex) {
-            $response = $ex->getResponse();
-        }
-        
         if ($response->getStatusCode() != 200) {
-            Log::error('Cannot get access token for '.$clientId.'. Server responds with status code '.$result->getStatusCode());
-            abort($result->getStatusCode());
+            Log::error('Cannot get access token for '.$clientId.'. Server responds with status code '.$response->getStatusCode());
+            abort($response->getStatusCode());
             return;
         }
         
-        return RequestManager::getResponseContent($result);
+        return RequestManager::getResponseContent($response);
     }
 
     /**
