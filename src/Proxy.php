@@ -166,7 +166,6 @@ class Proxy
         if ($force || !$success || !$accessToken) {
             Log::info("Requesting client access token from API for client ID ".$clientId);
             $accessToken = $this->requestClientAccessToken($clientId);
-            $accessToken = $accessToken[ProxyAux::ACCESS_TOKEN];
             apcu_store($cacheKey, $accessToken);
         }
         
