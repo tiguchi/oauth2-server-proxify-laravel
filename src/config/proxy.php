@@ -56,7 +56,7 @@ return [
       |
      */
     'use_header' => false,
-
+    
     /*
       |--------------------------------------------------------------------------
       |  List of client secret
@@ -69,4 +69,35 @@ return [
         'client_1' => 'abc123',
         'client_2' => 'def456'
     ],
+
+    /*
+      |--------------------------------------------------------------------------
+      | Access token used for guest users
+      |--------------------------------------------------------------------------
+      | 
+      | Enables the proxy to make an authenticated request on behalf of an anonymous user, by using
+      | an access token that is automatically retrieved using the client credentials grant.
+      | 
+      | The client app access token is never forwarded to the user's browser.
+      | Instead it is kept server-side and stored as a cached variable using the APCU extension.
+      |
+     */
+    'guest_access_tokens' => [
+        // Associates client ID with OAuth token endpoint URL
+        'client_1' => 'http://auth.example-domain.xyz/oauth/token'
+    ],
+    
+    /*
+      |--------------------------------------------------------------------------
+      |  List of API host names associated with each client
+      |--------------------------------------------------------------------------
+      |
+      | Defines API host names for each client ID. Must be specified if 'guest_access_token' is also
+      | used.
+      |
+     */
+    'client_api_hosts' => [
+        'api.example-domain.xyz' => 'client_1',
+        'api.some-other-domain.xyz' => 'client_2'
+    ]
 ];

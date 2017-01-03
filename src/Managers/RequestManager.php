@@ -12,6 +12,8 @@
 
 namespace Manukn\LaravelProxify\Managers;
 
+use Log;
+
 use Manukn\LaravelProxify\ProxyAux;
 use Manukn\LaravelProxify\Models\ProxyResponse;
 use GuzzleHttp\Client;
@@ -138,7 +140,7 @@ class RequestManager
     private function replicateRequest($method, $uri, $inputs)
     {
         $guzzleResponse = $this->sendGuzzleRequest($method, $uri, $inputs);
-        $proxyResponse = new ProxyResponse($guzzleResponse->getStatusCode(), $guzzleResponse->getReasonPhrase(), $guzzleResponse->getProtocolVersion(), $this->getResponseContent($guzzleResponse));
+        $proxyResponse = new ProxyResponse($guzzleResponse->getStatusCode(), $guzzleResponse->getReasonPhrase(), $guzzleResponse->getProtocolVersion(), self::getResponseContent($guzzleResponse));
 
         return $proxyResponse;
     }
@@ -147,7 +149,7 @@ class RequestManager
      * @param \GuzzleHttp\Message\ResponseInterface $response
      * @return mixed
      */
-    private function getResponseContent($response)
+    public static function getResponseContent($response)
     {
         switch ($response->getHeader('content-type')) {
             case 'application/json':
