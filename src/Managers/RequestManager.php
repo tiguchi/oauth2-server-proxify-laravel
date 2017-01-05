@@ -188,7 +188,7 @@ class RequestManager
             $contentType = explode(';', $this->request->header('Content-Type'));
             $contentType = trim($contentType[0]);
 
-            if ($this->request->isJson()) {
+            if ($this->request->isJson() || $this->request->ajax()) {
                 $options = array_add($options, 'json', $inputs);
             } else if (Request::matchesType($contentType, 'application/x-www-form-urlencoded')) {
                 $options = array_add($options, 'form_params', $inputs);
