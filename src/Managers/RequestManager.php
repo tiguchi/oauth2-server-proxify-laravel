@@ -81,7 +81,7 @@ class RequestManager
 
                 //Get a new access token from refresh token if exists
                 $cookie = null;
-                if ($proxyResponse->getStatusCode() != 200) {
+                if ($proxyResponse->getStatusCode() == 401) {
                     if (array_key_exists(ProxyAux::REFRESH_TOKEN, $parsedCookie)) {
                         $ret = $this->tryRefreshToken($inputs, $parsedCookie);
                     } else {
