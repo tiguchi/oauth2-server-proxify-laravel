@@ -59,10 +59,13 @@ class RequestManager
     public function executeRequest($inputs, $parsedCookie)
     {
         $cookie = null;
+        $contentType = explode(';', $this->request->header('Content-Type'));
+        $contentType = trim($contentType[0]);
+
         switch ($this->callMode) {
             case ProxyAux::MODE_LOGIN:
                 $inputs = $this->addLoginExtraParams($inputs);
-                $proxyResponse = $this->replicateRequest($this->method, $this->uri, $inputs);
+                $proxyResponse = $this->replicateRequest($this->method, $this->uri, $inputs, $contentType);
 
                 $clientId = (array_key_exists(ProxyAux::CLIENT_ID, $inputs)) ? $inputs[ProxyAux::CLIENT_ID] : null;
                 $content = $proxyResponse->getContent();
@@ -74,7 +77,7 @@ class RequestManager
                 break;
             case ProxyAux::MODE_TOKEN:
                 $inputs = $this->addTokenExtraParams($inputs, $parsedCookie);
-                $proxyResponse = $this->replicateRequest($this->method, $this->uri, $inputs);
+                $proxyResponse = $this->replicateRequest($this->method, $this->uri, $inputs, $contentType);
 
                 //Get a new access token from refresh token if exists
                 $cookie = null;
@@ -90,7 +93,7 @@ class RequestManager
                 $cookie = (isset($ret)) ? $ret['cookie'] : $cookie;
                 break;
             default:
-                $proxyResponse = $this->replicateRequest($this->method, $this->uri, $inputs);
+                $proxyResponse = $this->replicateRequest($this->method, $this->uri, $inputs, $contentType);
         }
 
         return array(
@@ -111,7 +114,7 @@ class RequestManager
         //Get a new access token from refresh token
         $inputs = $this->removeTokenExtraParams($inputs);
         $params = $this->addRefreshExtraParams(array(), $parsedCookie);
-        $proxyResponse = $this->replicateRequest($parsedCookie[ProxyAux::COOKIE_METHOD], $parsedCookie[ProxyAux::COOKIE_URI], $params);
+        $proxyResponse = $this->replicateRequest($parsedCookie[ProxyAux::COOKIE_METHOD], $parsedCookie[ProxyAux::COOKIE_URI], $params, 'application/x-www-form-urlencoded');
 
         $content = $proxyResponse->getContent();
         if ($proxyResponse->getStatusCode() === 200 && array_key_exists(ProxyAux::ACCESS_TOKEN, $content)) {
@@ -140,9 +143,9 @@ class RequestManager
      * @param $inputs
      * @return ProxyResponse
      */
-    private function replicateRequest($method, $uri, $inputs)
+    private function replicateRequest($method, $uri, $inputs, $contentType)
     {
-        $guzzleResponse = $this->sendGuzzleRequest($method, $uri, $inputs);
+        $guzzleResponse = $this->sendGuzzleRequest($method, $uri, $inputs, $contentType);
         $proxyResponse = new ProxyResponse($guzzleResponse->getStatusCode(), $guzzleResponse->getReasonPhrase(), $guzzleResponse->getProtocolVersion(), self::getResponseContent($guzzleResponse));
 
         return $proxyResponse;
@@ -171,7 +174,7 @@ class RequestManager
      * @param $inputs
      * @return \GuzzleHttp\Message\ResponseInterface
      */
-    private function sendGuzzleRequest($method, $uriVal, $inputs)
+    private function sendGuzzleRequest($method, $uriVal, $inputs, $contentType)
     {
         $options = array();
         $client = new Client();
@@ -185,22 +188,16 @@ class RequestManager
         if ($method === 'GET') {
             $options = array_add($options, 'query', $inputs);
         } else {
-            $contentType = explode(';', $this->request->header('Content-Type'));
-            $contentType = trim($contentType[0]);
-            
             if (Request::matchesType($contentType, 'application/json')) {
                 $options = array_add($options, 'json', $inputs);
             } else if (Request::matchesType($contentType, 'application/x-www-form-urlencoded')) {
               $options = array_add($options, 'form_params', $inputs);
             } else {
-                // TODO add content type to guzzle headers
                 $options = array_add($options, 'headers', [
-                    'Content-Type' => $this->request->header('Content-Type')
+                    'Content-Type' => $contentType
                 ]);
-                $options = array_add($options, 'body', $this->request->getContent());
+                $options = array_add($options, 'body', $inputs);
             }
-            
-            $options = array_add($options, 'body', $this->request->getContent());
         }
 
         try {
