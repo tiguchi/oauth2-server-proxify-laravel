@@ -100,14 +100,15 @@ class Proxy
         }
 
         $proxyResponse = $requestManager->executeRequest($inputs, $parsedCookie);
+        $wrappedResponse = $proxyResponse['response'];
         
-        if ($isGuestAccess && $proxyResponse['statusCode'] == 401) {
-            Log::warn('Guest access token has expired');
+        if ($isGuestAccess && $wrappedResponse->getStatusCode() == 401) {
+            Log::warning('Guest access token has expired');
             $parsedCookie = $this->getGuestAccessToken($url, true);
             $proxyResponse = $requestManager->executeRequest($inputs, $parsedCookie);
         }
 
-        return $this->setApiResponse($proxyResponse['response'], $proxyResponse['cookie']);
+        return $this->setApiResponse($wrappedResponse, $proxyResponse['cookie']);
     }
 
     /**
@@ -154,8 +155,7 @@ class Proxy
      * Tries to retrieve a guest access token for anonymous access, if possible.
      */ 
     private function getGuestAccessToken($url, $force = false) {
-        $hostName = explode('/', $url);
-        $hostName = $hostName[0];
+        $hostName = parse_url($url, PHP_URL_HOST);
         if (!isset($this->clientApiHosts[$hostName])) return null;
         $clientId = $this->clientApiHosts[$hostName];
 
@@ -167,6 +167,10 @@ class Proxy
             Log::info("Requesting client access token from API for client ID ".$clientId);
             $accessToken = $this->requestClientAccessToken($clientId);
             apcu_store($cacheKey, $accessToken);
+        }
+        
+        if (!$accessToken) {
+            Log::error("Could not retrieve client access token for client ID ".$clientId);
         }
         
         return $accessToken;

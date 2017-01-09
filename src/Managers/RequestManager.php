@@ -185,14 +185,31 @@ class RequestManager
         if ($method === 'GET') {
             $options = array_add($options, 'query', $inputs);
         } else {
-            $contentType = $this->request->header('Content-Type');
-            $options = array_add($options, 'headers', [
-                'Content-Type' => $contentType
-            ]);
+            $contentType = explode(';', $this->request->header('Content-Type'));
+            $contentType = trim($contentType[0]);
+            
+            if (Request::matchesType($contentType, 'application/json')) {
+                $options = array_add($options, 'json', $inputs);
+            } else if (Request::matchesType($contentType, 'application/x-www-form-urlencoded')) {
+              $options = array_add($options, 'form_params', $inputs);
+            } else {
+                // TODO add content type to guzzle headers
+                $options = array_add($options, 'headers', [
+                    'Content-Type' => $this->request->header('Content-Type')
+                ]);
+                $options = array_add($options, 'body', $this->request->getContent());
+            }
+            
             $options = array_add($options, 'body', $this->request->getContent());
         }
 
-        return $client->request($method, $uriVal, $options);
+        try {
+            return $client->request($method, $uriVal, $options);
+        } catch (ClientException $ex) {
+            Log::warning("Got error response from API ".$ex->getMessage());
+            
+            return $ex->getResponse();
+        }
     }
 
     /**
