@@ -12,6 +12,7 @@
 
 namespace Manukn\LaravelProxify\Managers;
 
+use Illuminate\Support\Facades\Crypt;
 use Manukn\LaravelProxify\Exceptions\CookieExpiredException;
 use Manukn\LaravelProxify\Exceptions\CookieInvalidException;
 use Illuminate\Support\Facades\Cookie;
@@ -37,7 +38,7 @@ class CookieManager
      */
     public function tryParseCookie($callMode)
     {
-        $parsedCookie = Cookie::get($this->info[CookieManager::COOKIE_NAME]);
+        $parsedCookie = json_decode(Cookie::get($this->info[CookieManager::COOKIE_NAME]), true);
 
         if (isset($parsedCookie)) {
             $parsedCookie = json_decode($parsedCookie, true);
@@ -48,7 +49,7 @@ class CookieManager
             }
         }
 
-        return $parsedCookie;
+        return $this->decryptCookieContent($parsedCookie);
     }
 
     /**
@@ -57,6 +58,8 @@ class CookieManager
      */
     public function createCookie(array $content)
     {
+        $content = json_encode($this->encryptCookieContent($content), true);
+
         if (!isset($this->info[CookieManager::COOKIE_TIME]) || $this->info[CookieManager::COOKIE_TIME] == null) {
             $cookie = Cookie::forever($this->info[CookieManager::COOKIE_NAME], json_encode($content));
         } else {
@@ -72,6 +75,37 @@ class CookieManager
     public function destroyCookie()
     {
         return Cookie::forget($this->info[CookieManager::COOKIE_NAME]);
+    }
+
+    /**
+     * Encrypts all content of cookie
+     * @param $content
+     * @return array
+     */
+    public function encryptCookieContent($content)
+    {
+        $encryptedContent = [];
+
+        foreach ($content as $item_key => $item) {
+            $encryptedContent[$item_key] = Crypt::encrypt($item);
+        }
+
+        return $encryptedContent;
+    }
+
+    /**
+     * Decrypt cookie content
+     * @param $content
+     * @return array
+     */
+    public function decryptCookieContent($content)
+    {
+        $decryptedContent = [];
+        foreach ($content as $item_key => $item) {
+            $decryptedContent[$item_key] = Crypt::decrypt($item);
+        }
+
+        return $decryptedContent;
     }
 
     /**

@@ -98,10 +98,10 @@ class Proxy
         if ($this->useHeader) {
             $requestManager->enableHeader();
         }
-
         $proxyResponse = $requestManager->executeRequest($inputs, $parsedCookie);
+
         $wrappedResponse = $proxyResponse['response'];
-        
+
         if ($isGuestAccess && $wrappedResponse->getStatusCode() == 401) {
             Log::warning('Guest access token has expired');
             $parsedCookie = $this->getGuestAccessToken($url, true);
@@ -122,7 +122,7 @@ class Proxy
         $mode = ProxyAux::MODE_TOKEN;
 
         if (isset($grantType)) {
-            if ($grantType === ProxyAux::PASSWORD_GRANT) {
+            if ($grantType === ProxyAux::PASSWORD_GRANT || $grantType === ProxyAux::AUTHORIZATION_GRANT) {
                 $mode = ProxyAux::MODE_LOGIN;
             }
         } elseif (isset($skip) && strtolower($skip) === 'true') {
