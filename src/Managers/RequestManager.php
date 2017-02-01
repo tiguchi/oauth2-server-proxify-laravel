@@ -12,8 +12,11 @@
 
 namespace Manukn\LaravelProxify\Managers;
 
+use Log;
+
 use Manukn\LaravelProxify\ProxyAux;
 use Manukn\LaravelProxify\Models\ProxyResponse;
+use Illuminate\Http\Request;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ClientException;
 use Manukn\LaravelProxify\Exceptions\MissingClientSecretException;
@@ -22,6 +25,7 @@ class RequestManager
 {
 
     private $uri = null;
+    private $request = null;
     private $method = null;
     private $callMode = null;
     private $clientSecrets = null;
@@ -32,10 +36,11 @@ class RequestManager
      * @param string $callMode
      * @param CookieManager $cookieManager
      */
-    public function __construct($uri, $method, $clientSecrets, $callMode, $cookieManager)
+    public function __construct($uri, Request $request, $clientSecrets, $callMode, $cookieManager)
     {
         $this->uri = $uri;
-        $this->method = $method;
+        $this->method = $request->method();
+        $this->request = $request;
         $this->clientSecrets = $clientSecrets;
         $this->callMode = $callMode;
         $this->cookieManager = $cookieManager;
@@ -54,10 +59,13 @@ class RequestManager
     public function executeRequest($inputs, $parsedCookie)
     {
         $cookie = null;
+        $contentType = explode(';', $this->request->header('Content-Type'));
+        $contentType = trim($contentType[0]);
+
         switch ($this->callMode) {
             case ProxyAux::MODE_LOGIN:
                 $inputs = $this->addLoginExtraParams($inputs);
-                $proxyResponse = $this->replicateRequest($this->method, $this->uri, $inputs);
+                $proxyResponse = $this->replicateRequest($this->method, $this->uri, $inputs, $contentType);
 
                 $clientId = (array_key_exists(ProxyAux::CLIENT_ID, $inputs)) ? $inputs[ProxyAux::CLIENT_ID] : null;
                 $content = $proxyResponse->getContent();
@@ -69,11 +77,11 @@ class RequestManager
                 break;
             case ProxyAux::MODE_TOKEN:
                 $inputs = $this->addTokenExtraParams($inputs, $parsedCookie);
-                $proxyResponse = $this->replicateRequest($this->method, $this->uri, $inputs);
+                $proxyResponse = $this->replicateRequest($this->method, $this->uri, $inputs, $contentType);
 
                 //Get a new access token from refresh token if exists
                 $cookie = null;
-                if ($proxyResponse->getStatusCode() != 200) {
+                if ($proxyResponse->getStatusCode() == 401) {
                     if (array_key_exists(ProxyAux::REFRESH_TOKEN, $parsedCookie)) {
                         $ret = $this->tryRefreshToken($inputs, $parsedCookie);
                     } else {
@@ -85,7 +93,7 @@ class RequestManager
                 $cookie = (isset($ret)) ? $ret['cookie'] : $cookie;
                 break;
             default:
-                $proxyResponse = $this->replicateRequest($this->method, $this->uri, $inputs);
+                $proxyResponse = $this->replicateRequest($this->method, $this->uri, $inputs, $contentType);
         }
 
         return array(
@@ -106,7 +114,7 @@ class RequestManager
         //Get a new access token from refresh token
         $inputs = $this->removeTokenExtraParams($inputs);
         $params = $this->addRefreshExtraParams(array(), $parsedCookie);
-        $proxyResponse = $this->replicateRequest($parsedCookie[ProxyAux::COOKIE_METHOD], $parsedCookie[ProxyAux::COOKIE_URI], $params);
+        $proxyResponse = $this->replicateRequest($parsedCookie[ProxyAux::COOKIE_METHOD], $parsedCookie[ProxyAux::COOKIE_URI], $params, 'application/x-www-form-urlencoded');
 
         $content = $proxyResponse->getContent();
         if ($proxyResponse->getStatusCode() === 200 && array_key_exists(ProxyAux::ACCESS_TOKEN, $content)) {
@@ -135,10 +143,10 @@ class RequestManager
      * @param $inputs
      * @return ProxyResponse
      */
-    private function replicateRequest($method, $uri, $inputs)
+    private function replicateRequest($method, $uri, $inputs, $contentType)
     {
-        $guzzleResponse = $this->sendGuzzleRequest($method, $uri, $inputs);
-        $proxyResponse = new ProxyResponse($guzzleResponse->getStatusCode(), $guzzleResponse->getReasonPhrase(), $guzzleResponse->getProtocolVersion(), $this->getResponseContent($guzzleResponse));
+        $guzzleResponse = $this->sendGuzzleRequest($method, $uri, $inputs, $contentType);
+        $proxyResponse = new ProxyResponse($guzzleResponse->getStatusCode(), $guzzleResponse->getReasonPhrase(), $guzzleResponse->getProtocolVersion(), self::getResponseContent($guzzleResponse));
 
         return $proxyResponse;
     }
@@ -147,14 +155,14 @@ class RequestManager
      * @param \GuzzleHttp\Message\ResponseInterface $response
      * @return mixed
      */
-    private function getResponseContent($response)
+    public static function getResponseContent($response)
     {
-        switch ($response->getHeader('content-type')) {
+        switch ($response->getHeaderLine('content-type')) {
             case 'application/json':
-                return $response->json();
-            case 'text/xml':
-            case 'application/xml':
-                return $response->xml();
+                return json_decode($response->getBody(), true);
+//            case 'text/xml':
+//            case 'application/xml':
+//                return $response->xml();
             default:
                 return $response->getBody();
         }
@@ -166,7 +174,7 @@ class RequestManager
      * @param $inputs
      * @return \GuzzleHttp\Message\ResponseInterface
      */
-    private function sendGuzzleRequest($method, $uriVal, $inputs)
+    private function sendGuzzleRequest($method, $uriVal, $inputs, $contentType)
     {
         $options = array();
         $client = new Client();
@@ -180,19 +188,25 @@ class RequestManager
         if ($method === 'GET') {
             $options = array_add($options, 'query', $inputs);
         } else {
-            $options = array_add($options, 'body', $inputs);
+            if (Request::matchesType($contentType, 'application/json')) {
+                $options = array_add($options, 'json', $inputs);
+            } else if (Request::matchesType($contentType, 'application/x-www-form-urlencoded')) {
+              $options = array_add($options, 'form_params', $inputs);
+            } else {
+                $options = array_add($options, 'headers', [
+                    'Content-Type' => $contentType
+                ]);
+                $options = array_add($options, 'body', $inputs);
+            }
         }
-
-        $request = $client->createRequest($method, $uriVal, $options);
-
 
         try {
-            $response = $client->send($request);
+            return $client->request($method, $uriVal, $options);
         } catch (ClientException $ex) {
-            $response = $ex->getResponse();
+            Log::warning("Got error response from API ".$ex->getMessage());
+            
+            return $ex->getResponse();
         }
-
-        return $response;
     }
 
     /**

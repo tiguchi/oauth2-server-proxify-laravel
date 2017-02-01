@@ -22,6 +22,7 @@ class ProxyAux
     const REFRESH_TOKEN = 'refresh_token';
     const CLIENT_ID = 'client_id';
     const CLIENT_SECRET = 'client_secret';
+    const CLIENT_CREDENTIALS = 'client_credentials';
     const COOKIE_URI = 'uri';
     const COOKIE_METHOD = 'method';
     const PASSWORD_GRANT = 'password';
