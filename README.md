@@ -178,7 +178,7 @@ composer require manukn/oauth2-server-proxify-laravel
 ## Setup
 
 1. Add `Manukn\LaravelProxify\ApiProxyServiceProvider::class,` to the service provider list in `app/config/app.php`.
-2. Add `Proxify' => Manukn\LaravelProxify\Facades\ApiProxyFacade',` to the list of aliases in `app/config/app.php`.
+2. Add `'Proxify' => Manukn\LaravelProxify\Facades\ApiProxyFacade::class,` to the list of aliases in `app/config/app.php`.
 
 ## Configuration
 
