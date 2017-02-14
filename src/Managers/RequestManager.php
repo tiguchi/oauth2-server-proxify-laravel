@@ -167,6 +167,29 @@ class RequestManager
                 return $response->getBody();
         }
     }
+    
+    private function createForwardedForString() {
+        $ips = array();
+
+        // Pass on original client and proxy IP address info if available.
+        // Warning: can be easily forged. API should use this additional info with caution.
+        if (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            $proxyIps = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
+            
+            foreach ($proxyIps as $pIp) {
+                $pIp = trim($pIp);
+                
+                if (filter_var($pIp, FILTER_VALIDATE_IP)) {
+                    $ips []= $pIp;
+                }
+            }
+        }
+
+        // Add the real client IP address that made the currently processed request
+        $ips []= $_SERVER['REMOTE_ADDR'];
+        
+        return implode(', ', $ips);
+    }
 
     /**
      * @param $method
@@ -176,13 +199,15 @@ class RequestManager
      */
     private function sendGuzzleRequest($method, $uriVal, $inputs, $contentType)
     {
-        $options = array();
+        $options = array('headers' => [
+            'X-Forwarded-For' => $this->createForwardedForString()
+        ]);
         $client = new Client();
 
         if ($this->callMode === ProxyAux::MODE_TOKEN && $this->useHeader === true) {
             $accessToken = ProxyAux::getQueryValue($inputs, ProxyAux::ACCESS_TOKEN);
             $inputs = ProxyAux::removeQueryValue($inputs, ProxyAux::ACCESS_TOKEN);
-            $options = array_add($options, 'headers', [ProxyAux::HEADER_AUTH => 'Bearer ' . $accessToken]);
+            $options['headers'][ProxyAux::HEADER_AUTH] = 'Bearer ' . $accessToken;
         }
 
         if ($method === 'GET') {
