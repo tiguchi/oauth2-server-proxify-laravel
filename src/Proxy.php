@@ -158,8 +158,7 @@ class Proxy
         $hostName = parse_url($url, PHP_URL_HOST);
         if (!isset($this->clientApiHosts[$hostName])) return null;
         $clientId = $this->clientApiHosts[$hostName];
-
-        $success;
+        $success = false;
         $cacheKey = self::CLIENT_ACCESS_TOKEN_CACHE_KEY.'_'.$clientId;
         $accessToken = apcu_fetch($cacheKey, $success);
         
