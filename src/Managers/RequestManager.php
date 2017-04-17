@@ -217,7 +217,19 @@ class RequestManager
                 $options = array_add($options, 'json', $inputs);
             } else if (Request::matchesType($contentType, 'application/x-www-form-urlencoded')) {
               $options = array_add($options, 'form_params', $inputs);
+            
+            } elseif (Request::matchesType($contentType, 'multipart/form-data')) {
+
+                // filter through all file inputs instances and append them to guzzle multipart option
+                foreach (request()->files as $inputName => $file) {
+                    if ($file instanceof \Symfony\Component\HttpFoundation\File\UploadedFile);
+                    $options['multipart'] = [];
+                    $options['multipart'][] = ['name' => $inputName, 'contents' => file_get_contents($file->getRealPath()), 'filename' => $file->getClientOriginalName()];
+                }
+                $options = array_add($options, 'multipart', $inputs);
+
             } else {
+            
                 $options = array_add($options, 'headers', [
                     'Content-Type' => $contentType
                 ]);
