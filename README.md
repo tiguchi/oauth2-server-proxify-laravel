@@ -1,4 +1,4 @@
-Laravel 5.2.* Proxy for OAuth
+Laravel 5.4.* Proxy for OAuth
 ================
 
 [![Software License](https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat-square)](LICENSE.md)
@@ -192,7 +192,7 @@ Afterwards edit the file ```app/config/proxy.php``` to suit your needs.
 
 ## Usage
 
-In the `app/config/routes.php` add a new endpoint like:
+In the `app/routes/api.php` add a new endpoint like:
 
 ```php
 Route::any('proxify/{url?}', function ($url) {
@@ -204,7 +204,7 @@ This is your proxy endpoint, then you can call proxy to get an access token (the
 
 
 ```
-POST proxify/example.com/oauth/access_token HTTP/1.1
+POST api/proxify/example.com/v1/oauth/access_token HTTP/1.1
 Host: example.com
 
 &grant_type=password
@@ -216,7 +216,7 @@ Host: example.com
 And after you can call the protected resource:
 
 ```
-POST proxify/example.com/protected_resource HTTP/1.1
+POST api/proxify/example.com/v1/protected_resource HTTP/1.1
 Host: example.com
 
 ```
