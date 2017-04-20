@@ -56,9 +56,9 @@ class CookieManager
      * @param array $content
      * @return mixed
      */
-    public function createCookie(array $content)
+    public function createCookie($content)
     {
-        $content = json_encode($this->encryptCookieContent($content), true);
+        $content = json_encode($this->encryptCookieContent((array)$content), true);
 
         if (!isset($this->info[CookieManager::COOKIE_TIME]) || $this->info[CookieManager::COOKIE_TIME] == null) {
             $cookie = Cookie::forever($this->info[CookieManager::COOKIE_NAME], json_encode($content));
