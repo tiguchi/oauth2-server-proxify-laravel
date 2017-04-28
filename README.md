@@ -234,16 +234,17 @@ The `ApiProxy` is available through the Facade `Proxify` or through the proxy se
 The method available is:
 
 ```php
-/**
- * Use this method in the laravel route file
- * @param $method
- * @param array $inputs
- * @return Response
- * @throws ProxyMissingParamException
- */
-Proxify::makeRequest(Request::method(), Input::all());
+/** 
+* Make request 
+* 
+* @param Request $request
+* @param $url
+* @return Response
+* @throws \Exception
+*/
+Proxify::makeRequest(request(), $url);
 ```
 
 ## License
 
-This package is released under the MIT License.
+This package is released under the [MIT](https://opensource.org/licenses/MIT) License.

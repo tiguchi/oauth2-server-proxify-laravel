@@ -53,11 +53,11 @@ class Proxy
     }
 
     /**
-     * @param $method
-     * @param array $inputs
+     * Make request
+     *
+     * @param Request $request
+     * @param $url
      * @return Response
-     * @throws CookieExpiredException
-     * @throws ProxyMissingParamException
      * @throws \Exception
      */
     public function makeRequest(Request $request, $url)
