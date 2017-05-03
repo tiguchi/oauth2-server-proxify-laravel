@@ -25,7 +25,6 @@
     }
   ],
   "require": {
-    "ext-apcu": "*",
     "laravel/framework": "5.4.*",
     "guzzlehttp/guzzle": "~6.0"
   },
