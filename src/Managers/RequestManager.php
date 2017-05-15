@@ -20,6 +20,7 @@ use Illuminate\Http\Request;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ClientException;
 use Manukn\LaravelProxify\Exceptions\MissingClientSecretException;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 class RequestManager
 {
@@ -219,13 +220,17 @@ class RequestManager
               $options = array_add($options, 'form_params', $inputs);
             
             } elseif (Request::matchesType($contentType, 'multipart/form-data')) {
+                $options['multipart'] = [];
 
-                // filter through all file inputs instances and append them to guzzle multipart option
-                foreach (request()->files as $inputName => $file) {
-                    if ($file instanceof \Symfony\Component\HttpFoundation\File\UploadedFile);
-                    $options['multipart'] = [];
-                    $options['multipart'][] = ['name' => $inputName, 'contents' => file_get_contents($file->getRealPath()), 'filename' => $file->getClientOriginalName()];
+                // filter through all file inputs instances and append them to guzzle multipart option based on type of input
+                foreach (request()->all() as $inputName => $input) {
+                    if ($input instanceof UploadedFile) {
+                        $options['multipart'][] = ['name' => $inputName, 'contents' => file_get_contents($input->getRealPath()), 'filename' => $input->getClientOriginalName()];
+                    } else {
+                        $options['multipart'][] = ['name' => $inputName, 'contents' => $input];
+                    }
                 }
+
                 $options = array_add($options, 'multipart', $inputs);
 
             } else {
@@ -238,6 +243,7 @@ class RequestManager
         }
 
         try {
+
             return $client->request($method, $uriVal, $options);
         } catch (ClientException $ex) {
             Log::warning("Got error response from API ".$ex->getMessage());
