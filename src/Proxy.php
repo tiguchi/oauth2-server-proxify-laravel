@@ -73,23 +73,27 @@ class Proxy
         $inputs = ProxyAux::removeQueryValue($inputs, $this->skipParam);
 
         //Read the cookie if exists
-        $parsedCookie = null;
+        $accessToken = null;
         $isGuestAccess = false;
         
         if ($this->callMode !== ProxyAux::MODE_SKIP && $this->callMode !== ProxyAux::MODE_LOGIN) {
-            try {
-                $parsedCookie = $this->cookieManager->tryParseCookie($this->callMode);
-            } catch (CookieExpiredException $ex) {
-                $parsedCookie = $this->getGuestAccessToken($url);
-                $isGuestAccess = true;
-
-                if (!$parsedCookie) {
+            if ($this->cookieManager->exists()) {
+                try {
+                    $accessToken = $this->cookieManager->tryParseCookie($this->callMode);
+                } catch (CookieExpiredException $ex) {
+                    // Force user to log in again if cookie has expired
                     if (isset($this->redirectUri) && !empty($this->redirectUri)) {
                         return \Redirect::to($this->redirectUri);
                     }
 
                     throw $ex;
                 }
+            }
+            
+            if (!$accessToken) {
+                // Enable guest access
+                $accessToken = $this->getGuestAccessToken($url);
+                $isGuestAccess = true;
             }
         }
 
@@ -98,14 +102,15 @@ class Proxy
         if ($this->useHeader) {
             $requestManager->enableHeader();
         }
-        $proxyResponse = $requestManager->executeRequest($inputs, $parsedCookie);
-
+        
+        $proxyResponse = $requestManager->executeRequest($inputs, $accessToken);
         $wrappedResponse = $proxyResponse['response'];
 
         if ($isGuestAccess && $wrappedResponse->getStatusCode() == 401) {
             Log::warning('Guest access token has expired');
-            $parsedCookie = $this->getGuestAccessToken($url, true);
-            $proxyResponse = $requestManager->executeRequest($inputs, $parsedCookie);
+            $accessToken = $this->getGuestAccessToken($url, true);
+            $proxyResponse = $requestManager->executeRequest($inputs, $accessToken);
+            $wrappedResponse = $proxyResponse['response'];
         }
 
         return $this->setApiResponse($wrappedResponse, $proxyResponse['cookie']);

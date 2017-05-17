@@ -51,6 +51,11 @@ class CookieManager
 
         return $this->decryptCookieContent($parsedCookie);
     }
+    
+    public function exists()
+    {
+        return Cookie::has($this->info[CookieManager::COOKIE_NAME]);
+    }
 
     /**
      * @param array $content
