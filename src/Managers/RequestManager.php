@@ -20,6 +20,7 @@ use Illuminate\Http\Request;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ClientException;
 use Manukn\LaravelProxify\Exceptions\MissingClientSecretException;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 class RequestManager
 {
@@ -219,21 +220,19 @@ class RequestManager
                 $options = array_add($options, 'json', $inputs);
             } else if (Request::matchesType($contentType, 'application/x-www-form-urlencoded')) {
               $options = array_add($options, 'form_params', $inputs);
-            } else if (Request::matchesType($contentType, 'multipart/form-data')) {
+            } elseif (Request::matchesType($contentType, 'multipart/form-data')) {
                 $options['multipart'] = [];
 
-                // filter through all file inputs instances and append them to guzzle multipart option
-                foreach (request()->files as $inputName => $files) {
-                    // Each request->file is an array
-                    
-                    foreach ($files as $file) {
-                        $options['multipart'][] = [
-                            'name' => $inputName,
-                            'contents' => fopen($file->getRealPath(), 'r'),
-                            'filename' => $file->getClientOriginalName()
-                        ];
+                // filter through all file inputs instances and append them to guzzle multipart option based on type of input
+                foreach (request()->all() as $inputName => $input) {
+                    if ($input instanceof UploadedFile) {
+                        $options['multipart'][] = ['name' => $inputName, 'contents' => fopen($input->getRealPath(), 'r'), 'filename' => $input->getClientOriginalName()];
+                    } else {
+                        $options['multipart'][] = ['name' => $inputName, 'contents' => $input];
                     }
                 }
+
+                $options = array_add($options, 'multipart', $inputs);
             } else {
             
                 $options = array_add($options, 'headers', [
@@ -244,6 +243,7 @@ class RequestManager
         }
 
         try {
+
             return $client->request($method, $uriVal, $options);
         } catch (ClientException $ex) {
             Log::warning("Got error response from API ".$ex->getMessage());
