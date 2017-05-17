@@ -179,6 +179,7 @@ class Proxy
         $tokenUrl = $this->guestAccessTokens[$clientId];
         $clientSecret = $this->clientSecrets[$clientId];
         $client = new Client();
+
         $response = $client->post($tokenUrl, [
             'form_params' => [
                 ProxyAux::CLIENT_ID => $clientId,

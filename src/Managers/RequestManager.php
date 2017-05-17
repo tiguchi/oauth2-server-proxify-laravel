@@ -81,11 +81,10 @@ class RequestManager
 
                 //Get a new access token from refresh token if exists
                 $cookie = null;
-                $statusCode = $proxyResponse->getStatusCode();
                 
-                if ($statusCode == 401 || $statusCode == 403) {
+                if ($proxyResponse->getStatusCode() == 401) {
                     if (array_key_exists(ProxyAux::REFRESH_TOKEN, $parsedCookie)) {
-                        $ret = $this->tryRefreshToken($inputs, $parsedCookie);
+                        $ret = $this->tryRefreshToken($inputs, $parsedCookie, $contentType);
                     } else {
                         $cookie = $this->cookieManager->destroyCookie();
                     }
@@ -109,7 +108,7 @@ class RequestManager
      * @param $parsedCookie
      * @return array
      */
-    private function tryRefreshToken($inputs, $parsedCookie)
+    private function tryRefreshToken($inputs, $parsedCookie, $contentType)
     {
         $this->callMode = ProxyAux::MODE_REFRESH;
 
@@ -125,10 +124,11 @@ class RequestManager
             $parsedCookie[ProxyAux::REFRESH_TOKEN] = $content[ProxyAux::REFRESH_TOKEN];
 
             $inputs = $this->addTokenExtraParams($inputs, $parsedCookie);
-            $proxyResponse = $this->replicateRequest($this->method, $this->uri, $inputs);
-
             //Set a new cookie with updated access token and refresh token
             $cookie = $this->cookieManager->createCookie($parsedCookie);
+
+            // Retry original request that failed with 401
+            $proxyResponse = $this->replicateRequest($this->method, $this->uri, $inputs, $contentType);
         } else {
             $cookie = $this->cookieManager->destroyCookie();
         }
