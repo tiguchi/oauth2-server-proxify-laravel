@@ -81,19 +81,15 @@ class Proxy
                 try {
                     $accessToken = $this->cookieManager->tryParseCookie($this->callMode);
                 } catch (CookieExpiredException $ex) {
-                    // Force user to log in again if cookie has expired
-                    if (isset($this->redirectUri) && !empty($this->redirectUri)) {
-                        return \Redirect::to($this->redirectUri);
-                    }
-
-                    throw $ex;
+                    // Do nothing for now, but force login later in case of a 403 during guest token access
+                    Log::warn('User access token has expired. Trying guest access token instead.');
                 }
             }
             
             if (!$accessToken) {
+                $isGuestAccess = true;
                 // Enable guest access
                 $accessToken = $this->getGuestAccessToken($url);
-                $isGuestAccess = true;
             }
         }
 
@@ -105,15 +101,44 @@ class Proxy
         
         $proxyResponse = $requestManager->executeRequest($inputs, $accessToken);
         $wrappedResponse = $proxyResponse['response'];
+        $statusCode = $wrappedResponse->getStatusCode();
+        $cookie = $proxyResponse['cookie'];
 
-        if ($isGuestAccess && $wrappedResponse->getStatusCode() == 401) {
-            Log::warning('Guest access token has expired');
-            $accessToken = $this->getGuestAccessToken($url, true);
-            $proxyResponse = $requestManager->executeRequest($inputs, $accessToken);
-            $wrappedResponse = $proxyResponse['response'];
+        if ($statusCode == 401) {
+            if ($isGuestAccess) {
+                // User refresh token has expired... delete cookie so new login can be forced
+                Log::warning('Guest access token has expired');
+                $accessToken = $this->getGuestAccessToken($url, true);
+                $proxyResponse = $requestManager->executeRequest($inputs, $accessToken);
+                $wrappedResponse = $proxyResponse['response'];
+            } else {
+                $this->reauthenticateUser($wrappedResponse);
+            }
+        } else if ($statusCode == 403 && $isGuestAccess) {
+            // User access token has expired and guest token cannot be used for request (restricted permissions)
+            return $this->reauthenticateUser($wrappedResponse);
+        } 
+
+        return $this->setApiResponse($wrappedResponse, $cookie);
+    }
+    
+    private function reauthenticateUser($apiErrorResponse = false)
+    {
+        $forgottenCookie = $this->cookieManager->destroyCookie();
+
+        if (isset($this->redirectUri) && !empty($this->redirectUri)) {
+            return \Redirect::to($this->redirectUri)->withCookie($forgottenCookie);
         }
 
-        return $this->setApiResponse($wrappedResponse, $proxyResponse['cookie']);
+        Log::error("Cannot reauthenticate user. No redirect URI set... forwarding 401 error response from API");
+        
+        if ($apiErrorResponse) {
+            return $this->setApiResponse($apiErrorResponse, $forgottenCookie);
+        } else {
+            $apiErrorResponse = response('{"error":"401 Unauthorized}', 401)->header('Content-Type', 'application/json')->withCookie($forgottenCookie);
+        }
+        
+        return $apiErrorResponse;
     }
 
     /**
@@ -142,7 +167,7 @@ class Proxy
      * @param $cookie
      * @return Response
      */
-    private function setApiResponse($proxyResponse, $cookie)
+    private function setApiResponse($proxyResponse, $cookie = null)
     {
         $response = new Response($proxyResponse->getContent(), $proxyResponse->getStatusCode());
 
