@@ -81,7 +81,9 @@ class RequestManager
 
                 //Get a new access token from refresh token if exists
                 $cookie = null;
-                if ($proxyResponse->getStatusCode() == 401) {
+                $statusCode = $proxyResponse->getStatusCode();
+                
+                if ($statusCode == 401 || $statusCode == 403) {
                     if (array_key_exists(ProxyAux::REFRESH_TOKEN, $parsedCookie)) {
                         $ret = $this->tryRefreshToken($inputs, $parsedCookie);
                     } else {
@@ -115,8 +117,8 @@ class RequestManager
         $inputs = $this->removeTokenExtraParams($inputs);
         $params = $this->addRefreshExtraParams(array(), $parsedCookie);
         $proxyResponse = $this->replicateRequest($parsedCookie[ProxyAux::COOKIE_METHOD], $parsedCookie[ProxyAux::COOKIE_URI], $params, 'application/x-www-form-urlencoded');
-
         $content = $proxyResponse->getContent();
+
         if ($proxyResponse->getStatusCode() === 200 && array_key_exists(ProxyAux::ACCESS_TOKEN, $content)) {
             $this->callMode = ProxyAux::MODE_TOKEN;
             $parsedCookie[ProxyAux::ACCESS_TOKEN] = $content[ProxyAux::ACCESS_TOKEN];
@@ -217,17 +219,21 @@ class RequestManager
                 $options = array_add($options, 'json', $inputs);
             } else if (Request::matchesType($contentType, 'application/x-www-form-urlencoded')) {
               $options = array_add($options, 'form_params', $inputs);
-            
-            } elseif (Request::matchesType($contentType, 'multipart/form-data')) {
+            } else if (Request::matchesType($contentType, 'multipart/form-data')) {
                 $options['multipart'] = [];
 
                 // filter through all file inputs instances and append them to guzzle multipart option
-                foreach (request()->files as $inputName => $file) {
-                    $options['multipart'][] = ['name' => $inputName, 'contents' => file_get_contents($file->getRealPath()), 'filename' => $file->getClientOriginalName(), 'description' => @$inputs[$inputName]['description']];
+                foreach (request()->files as $inputName => $files) {
+                    // Each request->file is an array
+                    
+                    foreach ($files as $file) {
+                        $options['multipart'][] = [
+                            'name' => $inputName,
+                            'contents' => fopen($file->getRealPath(), 'r'),
+                            'filename' => $file->getClientOriginalName()
+                        ];
+                    }
                 }
-
-//                $options = array_add($options, 'multipart', $inputs);
-
             } else {
             
                 $options = array_add($options, 'headers', [
