@@ -224,7 +224,10 @@ class Proxy
             return;
         }
         
-        return RequestManager::getResponseContent($response);
+        $contentType = $response->getHeaderLine('content-type');
+        $content = $response->getBody();
+        
+        return ProxyResponse::parseContent($contentType, $content);
     }
 
     /**

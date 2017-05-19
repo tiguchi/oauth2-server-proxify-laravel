@@ -19,13 +19,15 @@ class ProxyResponse
     private $reasonPhrase = null;
     private $protocolVersion = null;
     private $content = null;
+    private $parsedContent = null;
 
-    public function __construct($statusCode, $reasonPhrase, $protoVersion, $content)
+    public function __construct($statusCode, $reasonPhrase, $protoVersion, $content, $contentType)
     {
         $this->statusCode = $statusCode;
         $this->reasonPhrase = $reasonPhrase;
         $this->protocolVersion = $protoVersion;
         $this->content = $content;
+        $this->contentType = $contentType;
     }
 
     public function setStatusCode($status)
@@ -66,5 +68,25 @@ class ProxyResponse
     public function getContent()
     {
         return $this->content;
+    }
+    
+    public static function parseContent($contentType, $content)
+    {
+        switch ($contentType) {
+            case 'application/json':
+                return json_decode($content, true);
+
+            default:
+                return $content;
+        }
+    }
+    
+    public function getParsedContent()
+    {
+        if ($this->parsedContent === null) {
+            $this->parsedContent = self::parseContent($this->contentType, $this->content);
+        }
+        
+        return $this->parsedContent;
     }
 }

@@ -69,7 +69,7 @@ class RequestManager
                 $proxyResponse = $this->replicateRequest($this->method, $this->uri, $inputs, $contentType);
 
                 $clientId = (array_key_exists(ProxyAux::CLIENT_ID, $inputs)) ? $inputs[ProxyAux::CLIENT_ID] : null;
-                $content = $proxyResponse->getContent();
+                $content = $proxyResponse->getParsedContent();
                 $content = ProxyAux::addQueryValue($content, ProxyAux::COOKIE_URI, $this->uri);
                 $content = ProxyAux::addQueryValue($content, ProxyAux::COOKIE_METHOD, $this->method);
                 $content = ProxyAux::addQueryValue($content, ProxyAux::CLIENT_ID, $clientId);
@@ -117,7 +117,7 @@ class RequestManager
         $inputs = $this->removeTokenExtraParams($inputs);
         $params = $this->addRefreshExtraParams(array(), $parsedCookie);
         $proxyResponse = $this->replicateRequest($parsedCookie[ProxyAux::COOKIE_METHOD], $parsedCookie[ProxyAux::COOKIE_URI], $params, 'application/x-www-form-urlencoded');
-        $content = $proxyResponse->getContent();
+        $content = $proxyResponse->getParsedContent();
 
         if ($proxyResponse->getStatusCode() === 200 && array_key_exists(ProxyAux::ACCESS_TOKEN, $content)) {
             $this->callMode = ProxyAux::MODE_TOKEN;
@@ -149,26 +149,11 @@ class RequestManager
     private function replicateRequest($method, $uri, $inputs, $contentType)
     {
         $guzzleResponse = $this->sendGuzzleRequest($method, $uri, $inputs, $contentType);
-        $proxyResponse = new ProxyResponse($guzzleResponse->getStatusCode(), $guzzleResponse->getReasonPhrase(), $guzzleResponse->getProtocolVersion(), self::getResponseContent($guzzleResponse));
+        $body = $guzzleResponse->getBody();
+        $contentType = $guzzleResponse->getHeaderLine('content-type');
+        $proxyResponse = new ProxyResponse($guzzleResponse->getStatusCode(), $guzzleResponse->getReasonPhrase(), $guzzleResponse->getProtocolVersion(), $body, $contentType);
 
         return $proxyResponse;
-    }
-
-    /**
-     * @param \GuzzleHttp\Message\ResponseInterface $response
-     * @return mixed
-     */
-    public static function getResponseContent($response)
-    {
-        switch ($response->getHeaderLine('content-type')) {
-            case 'application/json':
-                return json_decode($response->getBody(), true);
-//            case 'text/xml':
-//            case 'application/xml':
-//                return $response->xml();
-            default:
-                return $response->getBody();
-        }
     }
     
     private function createForwardedForString() {
