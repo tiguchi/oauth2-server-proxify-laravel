@@ -23,6 +23,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ClientException;
+use Manukn\LaravelProxify\Models\ProxyResponse;
 
 class Proxy
 {
