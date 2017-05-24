@@ -82,7 +82,7 @@ class RequestManager
 
                 //Get a new access token from refresh token if exists
                 $cookie = null;
-                
+
                 if ($proxyResponse->getStatusCode() == 401) {
                     if (array_key_exists(ProxyAux::REFRESH_TOKEN, $parsedCookie)) {
                         $ret = $this->tryRefreshToken($inputs, $parsedCookie, $contentType);
@@ -155,7 +155,7 @@ class RequestManager
 
         return $proxyResponse;
     }
-    
+
     private function createForwardedForString() {
         $ips = array();
 
@@ -163,10 +163,10 @@ class RequestManager
         // Warning: can be easily forged. API should use this additional info with caution.
         if (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
             $proxyIps = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
-            
+
             foreach ($proxyIps as $pIp) {
                 $pIp = trim($pIp);
-                
+
                 if (filter_var($pIp, FILTER_VALIDATE_IP)) {
                     $ips []= $pIp;
                 }
@@ -175,7 +175,7 @@ class RequestManager
 
         // Add the real client IP address that made the currently processed request
         $ips []= $_SERVER['REMOTE_ADDR'];
-        
+
         return implode(', ', $ips);
     }
 
@@ -190,6 +190,20 @@ class RequestManager
         $options = array('headers' => [
             'X-Forwarded-For' => $this->createForwardedForString()
         ]);
+
+        $headers = $this->request->headers->all();
+
+        foreach ($headers as $name => $values) {
+            // Look for extra headers provided by caller that should be forwarded to API
+            if (substr($name, 0, 8) == 'proxify-') {
+                $forwardHeaderName = substr($name, 8);
+
+                foreach ($values as $value) {
+                    $options['headers'][$forwardHeaderName] = $value;
+                }
+            }
+        }
+
         $client = new Client();
 
         if ($this->callMode === ProxyAux::MODE_TOKEN && $this->useHeader === true) {
@@ -219,7 +233,7 @@ class RequestManager
 
                 $options = array_add($options, 'multipart', $inputs);
             } else {
-            
+
                 $options = array_add($options, 'headers', [
                     'Content-Type' => $contentType
                 ]);
@@ -231,8 +245,8 @@ class RequestManager
 
             return $client->request($method, $uriVal, $options);
         } catch (ClientException $ex) {
-            Log::warning("Got error response from API ".$ex->getMessage());
-            
+            Log::warning("Got error response from API: ".$ex->getMessage());
+
             return $ex->getResponse();
         }
     }

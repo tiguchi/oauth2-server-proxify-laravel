@@ -76,7 +76,7 @@ class Proxy
         //Read the cookie if exists
         $accessToken = null;
         $isGuestAccess = false;
-        
+
         if ($this->callMode !== ProxyAux::MODE_SKIP && $this->callMode !== ProxyAux::MODE_LOGIN) {
             if ($this->cookieManager->exists()) {
                 try {
@@ -86,7 +86,7 @@ class Proxy
                     Log::warn('User access token has expired. Trying guest access token instead.');
                 }
             }
-            
+
             if (!$accessToken) {
                 $isGuestAccess = true;
                 // Enable guest access
@@ -99,7 +99,7 @@ class Proxy
         if ($this->useHeader) {
             $requestManager->enableHeader();
         }
-        
+
         $proxyResponse = $requestManager->executeRequest($inputs, $accessToken);
         $wrappedResponse = $proxyResponse['response'];
         $statusCode = $wrappedResponse->getStatusCode();
@@ -118,11 +118,11 @@ class Proxy
         } else if ($statusCode == 403 && $isGuestAccess) {
             // User access token has expired and guest token cannot be used for request (restricted permissions)
             return $this->reauthenticateUser($wrappedResponse);
-        } 
+        }
 
         return $this->setApiResponse($wrappedResponse, $cookie);
     }
-    
+
     private function reauthenticateUser($apiErrorResponse = false)
     {
         $forgottenCookie = $this->cookieManager->destroyCookie();
@@ -132,13 +132,13 @@ class Proxy
         }
 
         Log::error("Cannot reauthenticate user. No redirect URI set... forwarding 401 error response from API");
-        
+
         if ($apiErrorResponse) {
             return $this->setApiResponse($apiErrorResponse, $forgottenCookie);
         } else {
             $apiErrorResponse = response('{"error":"401 Unauthorized}', 401)->header('Content-Type', 'application/json')->withCookie($forgottenCookie);
         }
-        
+
         return $apiErrorResponse;
     }
 
@@ -181,10 +181,10 @@ class Proxy
 
         return $response;
     }
-    
+
     /**
      * Tries to retrieve a guest access token for anonymous access, if possible.
-     */ 
+     */
     private function getGuestAccessToken($url, $force = false) {
         $hostName = parse_url($url, PHP_URL_HOST);
         if (!isset($this->clientApiHosts[$hostName])) return null;
@@ -192,20 +192,20 @@ class Proxy
         $success = false;
         $cacheKey = self::CLIENT_ACCESS_TOKEN_CACHE_KEY.'_'.$clientId;
         $accessToken = apcu_fetch($cacheKey, $success);
-        
+
         if ($force || !$success || !$accessToken) {
             Log::info("Requesting client access token from API for client ID ".$clientId);
             $accessToken = $this->requestClientAccessToken($clientId);
             apcu_store($cacheKey, $accessToken);
         }
-        
+
         if (!$accessToken) {
             Log::error("Could not retrieve client access token for client ID ".$clientId);
         }
-        
+
         return $accessToken;
     }
-    
+
     private function requestClientAccessToken($clientId) {
         $tokenUrl = $this->guestAccessTokens[$clientId];
         $clientSecret = $this->clientSecrets[$clientId];
@@ -218,16 +218,16 @@ class Proxy
                 ProxyAux::GRANT_TYPE => ProxyAux::CLIENT_CREDENTIALS
             ]
         ]);
-        
+
         if ($response->getStatusCode() != 200) {
             Log::error('Cannot get access token for '.$clientId.'. Server responds with status code '.$response->getStatusCode());
             abort($response->getStatusCode());
             return;
         }
-        
+
         $contentType = $response->getHeaderLine('content-type');
         $content = $response->getBody();
-        
+
         return ProxyResponse::parseContent($contentType, $content);
     }
 
