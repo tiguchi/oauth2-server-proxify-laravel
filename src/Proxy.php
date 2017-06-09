@@ -179,6 +179,15 @@ class Proxy
             $response->withCookie($cookie);
         }
 
+        $headers = $proxyResponse->getHeaders();
+
+        // Collapse each header to a single value.
+        foreach ($headers as $key => &$value) {
+            $value = $value[0];
+        }
+
+        $response->withHeaders($headers);
+
         return $response;
     }
 

@@ -151,7 +151,7 @@ class RequestManager
         $guzzleResponse = $this->sendGuzzleRequest($method, $uri, $inputs, $contentType);
         $body = $guzzleResponse->getBody();
         $contentType = $guzzleResponse->getHeaderLine('content-type');
-        $proxyResponse = new ProxyResponse($guzzleResponse->getStatusCode(), $guzzleResponse->getReasonPhrase(), $guzzleResponse->getProtocolVersion(), $body, $contentType);
+        $proxyResponse = new ProxyResponse($guzzleResponse->getStatusCode(), $guzzleResponse->getReasonPhrase(), $guzzleResponse->getProtocolVersion(), $body, $contentType, $guzzleResponse->getHeaders());
 
         return $proxyResponse;
     }

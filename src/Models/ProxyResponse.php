@@ -21,13 +21,14 @@ class ProxyResponse
     private $content = null;
     private $parsedContent = null;
 
-    public function __construct($statusCode, $reasonPhrase, $protoVersion, $content, $contentType)
+    public function __construct($statusCode, $reasonPhrase, $protoVersion, $content, $contentType, $headers)
     {
         $this->statusCode = $statusCode;
         $this->reasonPhrase = $reasonPhrase;
         $this->protocolVersion = $protoVersion;
         $this->content = $content;
         $this->contentType = $contentType;
+        $this->headers = $headers;
     }
 
     public function setStatusCode($status)
@@ -69,7 +70,12 @@ class ProxyResponse
     {
         return $this->content;
     }
-    
+
+    public function getHeaders()
+    {
+        return $this->headers;
+    }
+
     public static function parseContent($contentType, $content)
     {
         switch ($contentType) {
@@ -80,13 +86,13 @@ class ProxyResponse
                 return $content;
         }
     }
-    
+
     public function getParsedContent()
     {
         if ($this->parsedContent === null) {
             $this->parsedContent = self::parseContent($this->contentType, $this->content);
         }
-        
+
         return $this->parsedContent;
     }
 }
