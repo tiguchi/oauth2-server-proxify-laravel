@@ -180,13 +180,14 @@ class Proxy
         }
 
         $headers = $proxyResponse->getHeaders();
+        $convertedHeaders = [];
 
         // Collapse each header to a single value.
-        foreach ($headers as $key => &$value) {
-            $value = $value[0];
+        foreach ($headers as $key => $value) {
+            $convertedHeaders['Proxify-'.$key] = $value[0];
         }
 
-        $response->withHeaders($headers);
+        $response->withHeaders($convertedHeaders);
 
         return $response;
     }
