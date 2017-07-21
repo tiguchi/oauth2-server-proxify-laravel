@@ -38,10 +38,13 @@ class CookieManager
      */
     public function tryParseCookie($callMode)
     {
-        $parsedCookie = json_decode(Cookie::get($this->info[CookieManager::COOKIE_NAME]), true);
+        $encryptedCookie = Cookie::get($this->info[CookieManager::COOKIE_NAME]);
+        if (!$encryptedCookie) return false;
+
+        $decryptedCookie = Crypt::decrypt($encryptedCookie);
+        $parsedCookie = json_decode($decryptedCookie, true);
 
         if (isset($parsedCookie)) {
-            $parsedCookie = json_decode($parsedCookie, true);
             $this->validateCookie($parsedCookie);
         } else {
             if ($callMode !== ProxyAux::MODE_LOGIN) {
@@ -49,7 +52,7 @@ class CookieManager
             }
         }
 
-        return $this->decryptCookieContent($parsedCookie);
+        return $parsedCookie;
     }
     
     public function exists()
@@ -63,12 +66,13 @@ class CookieManager
      */
     public function createCookie($content)
     {
-        $content = json_encode($this->encryptCookieContent((array)$content), true);
+        $jsonString = json_encode((array) $content, true);
+        $encryptedJsonString = Crypt::encrypt($jsonString);
 
         if (!isset($this->info[CookieManager::COOKIE_TIME]) || $this->info[CookieManager::COOKIE_TIME] == null) {
-            $cookie = Cookie::forever($this->info[CookieManager::COOKIE_NAME], json_encode($content));
+            $cookie = Cookie::forever($this->info[CookieManager::COOKIE_NAME], $encryptedJsonString);
         } else {
-            $cookie = Cookie::make($this->info[CookieManager::COOKIE_NAME], json_encode($content), $this->info[CookieManager::COOKIE_TIME]);
+            $cookie = Cookie::make($this->info[CookieManager::COOKIE_NAME], $encryptedJsonString, $this->info[CookieManager::COOKIE_TIME]);
         }
 
         return $cookie;
@@ -80,37 +84,6 @@ class CookieManager
     public function destroyCookie()
     {
         return Cookie::forget($this->info[CookieManager::COOKIE_NAME]);
-    }
-
-    /**
-     * Encrypts all content of cookie
-     * @param $content
-     * @return array
-     */
-    public function encryptCookieContent($content)
-    {
-        $encryptedContent = [];
-
-        foreach ($content as $item_key => $item) {
-            $encryptedContent[$item_key] = Crypt::encrypt($item);
-        }
-
-        return $encryptedContent;
-    }
-
-    /**
-     * Decrypt cookie content
-     * @param $content
-     * @return array
-     */
-    public function decryptCookieContent($content)
-    {
-        $decryptedContent = [];
-        foreach ($content as $item_key => $item) {
-            $decryptedContent[$item_key] = Crypt::decrypt($item);
-        }
-
-        return $decryptedContent;
     }
 
     /**

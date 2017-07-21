@@ -15,6 +15,7 @@ namespace Manukn\LaravelProxify;
 use Log;
 
 use Manukn\LaravelProxify\Exceptions\CookieExpiredException;
+use Manukn\LaravelProxify\Exceptions\CookieInvalidException;
 use Manukn\LaravelProxify\Exceptions\UnauthorizedException;
 use Manukn\LaravelProxify\Exceptions\ProxyMissingParamException;
 use Manukn\LaravelProxify\Managers\CookieManager;
@@ -76,6 +77,7 @@ class Proxy
         //Read the cookie if exists
         $accessToken = null;
         $isGuestAccess = false;
+        $cookieExpired = false;
 
         if ($this->callMode !== ProxyAux::MODE_SKIP && $this->callMode !== ProxyAux::MODE_LOGIN) {
             if ($this->cookieManager->exists()) {
@@ -84,6 +86,10 @@ class Proxy
                 } catch (CookieExpiredException $ex) {
                     // Do nothing for now, but force login later in case of a 403 during guest token access
                     Log::warn('User access token has expired. Trying guest access token instead.');
+                    $cookieExpired = true;
+                } catch (CookiedInvalidException $ex) {
+                    Log::error('User access token is invalid or corrupt. Trying guest access token instead.');
+                    $cookieExpired = true;
                 }
             }
 
@@ -104,6 +110,11 @@ class Proxy
         $wrappedResponse = $proxyResponse['response'];
         $statusCode = $wrappedResponse->getStatusCode();
         $cookie = $proxyResponse['cookie'];
+
+        if (!$cookie && $cookieExpired) {
+            Log::info('Destroying access token cookie...');
+            $cookie = $this->cookieManager->destroy();
+        }
 
         if ($statusCode == 401) {
             if ($isGuestAccess) {
