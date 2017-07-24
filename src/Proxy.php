@@ -198,6 +198,7 @@ class Proxy
             $convertedHeaders['Proxify-'.$key] = $value[0];
         }
 
+        $convertedHeaders['Content-Type'] = $proxyResponse->getContentType();
         $response->withHeaders($convertedHeaders);
 
         return $response;

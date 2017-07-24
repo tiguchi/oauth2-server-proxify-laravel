@@ -66,6 +66,11 @@ class ProxyResponse
         return $this->protocolVersion;
     }
 
+    public function getContentType()
+    {
+        return $this->contentType;
+    }
+
     public function getContent()
     {
         return $this->content;
