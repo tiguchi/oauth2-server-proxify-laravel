@@ -13,10 +13,13 @@
 namespace Manukn\LaravelProxify\Managers;
 
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Cookie;
+use Illuminate\Contracts\Encryption\DecryptException;
+
 use Manukn\LaravelProxify\Exceptions\CookieExpiredException;
 use Manukn\LaravelProxify\Exceptions\CookieInvalidException;
-use Illuminate\Support\Facades\Cookie;
 use Manukn\LaravelProxify\ProxyAux;
+
 
 class CookieManager
 {
@@ -41,7 +44,12 @@ class CookieManager
         $encryptedCookie = Cookie::get($this->info[CookieManager::COOKIE_NAME]);
         if (!$encryptedCookie) return false;
 
-        $decryptedCookie = Crypt::decrypt($encryptedCookie);
+        try { 
+            $decryptedCookie = Crypt::decrypt($encryptedCookie);
+        } catch (DecryptException $e) {
+            throw new CookieInvalidException("Cannot decrypt cookie.", $e);
+        }
+
         $parsedCookie = json_decode($decryptedCookie, true);
 
         if (isset($parsedCookie)) {

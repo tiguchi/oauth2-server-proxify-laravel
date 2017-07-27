@@ -113,7 +113,7 @@ class Proxy
 
         if (!$cookie && $cookieExpired) {
             Log::info('Destroying access token cookie...');
-            $cookie = $this->cookieManager->destroy();
+            $cookie = $this->cookieManager->destroyCookie();
         }
 
         if ($statusCode == 401) {
