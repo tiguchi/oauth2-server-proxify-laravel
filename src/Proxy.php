@@ -87,7 +87,7 @@ class Proxy
                     // Do nothing for now, but force login later in case of a 403 during guest token access
                     Log::warn('User access token has expired. Trying guest access token instead.');
                     $cookieExpired = true;
-                } catch (CookiedInvalidException $ex) {
+                } catch (CookieInvalidException $ex) {
                     Log::error('User access token is invalid or corrupt. Trying guest access token instead.');
                     $cookieExpired = true;
                 }
