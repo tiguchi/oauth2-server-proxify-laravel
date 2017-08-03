@@ -216,7 +216,8 @@ class RequestManager
             $options = array_add($options, 'query', $inputs);
         } else {
             if (Request::matchesType($contentType, 'application/json')) {
-                $options = array_add($options, 'json', $inputs);
+                $options['headers']['content-type'] = 'application/json';
+                $options = array_add($options, 'body', $this->request->getContent());
             } else if (Request::matchesType($contentType, 'application/x-www-form-urlencoded')) {
               $options = array_add($options, 'form_params', $inputs);
             } elseif (Request::matchesType($contentType, 'multipart/form-data')) {
@@ -242,7 +243,6 @@ class RequestManager
         }
 
         try {
-
             return $client->request($method, $uriVal, $options);
         } catch (ClientException $ex) {
             Log::warning("Got error response from API: ".$ex->getMessage());
