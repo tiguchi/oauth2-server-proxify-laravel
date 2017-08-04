@@ -229,6 +229,8 @@ class RequestManager
                 }
 
                 $options = array_add($options, 'multipart', $inputs);
+            } else if (Request::matchesType($contentType, 'application/x-www-form-urlencoded')) {
+                $options = array_add($options, 'form_params', $inputs);
             } else {
                 // Just pass on as is
                 $options['headers']['content-type'] = $contentType;
@@ -236,8 +238,15 @@ class RequestManager
             }
         }
 
+        $queryParams = $this->request->query();
+        $queryString = \http_build_query($queryParams);
+        $apiUri = $uriVal;
+
+        if ($queryString)
+            $apiUri .= '?'.$queryString;
+
         try {
-            return $client->request($method, $uriVal.'?'.$_SERVER['QUERY_STRING'], $options);
+            return $client->request($method, $apiUri, $options);
         } catch (ClientException $ex) {
             Log::warning("Got error response from API: ".$ex->getMessage());
 
