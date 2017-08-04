@@ -215,12 +215,8 @@ class RequestManager
         if ($method === 'GET') {
             $options = array_add($options, 'query', $inputs);
         } else {
-            if (Request::matchesType($contentType, 'application/json')) {
-                $options['headers']['content-type'] = 'application/json';
-                $options = array_add($options, 'body', $this->request->getContent());
-            } else if (Request::matchesType($contentType, 'application/x-www-form-urlencoded')) {
-              $options = array_add($options, 'form_params', $inputs);
-            } elseif (Request::matchesType($contentType, 'multipart/form-data')) {
+            if (Request::matchesType($contentType, 'multipart/form-data')) {
+                // Forward file upload
                 $options['multipart'] = [];
 
                 // filter through all file inputs instances and append them to guzzle multipart option based on type of input
@@ -234,11 +230,9 @@ class RequestManager
 
                 $options = array_add($options, 'multipart', $inputs);
             } else {
-
-                $options = array_add($options, 'headers', [
-                    'Content-Type' => $contentType
-                ]);
-                $options = array_add($options, 'body', $inputs);
+                // Just pass on as is
+                $options['headers']['content-type'] = $contentType;
+                $options = array_add($options, 'body', $this->request->getContent());
             }
         }
 
