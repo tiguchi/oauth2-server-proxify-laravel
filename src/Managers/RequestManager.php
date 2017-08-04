@@ -188,7 +188,9 @@ class RequestManager
     private function sendGuzzleRequest($method, $uriVal, $inputs, $contentType)
     {
         $options = array('headers' => [
-            'X-Forwarded-For' => $this->createForwardedForString()
+            'X-Forwarded-For' => $this->createForwardedForString(),
+        ],[
+            'query' => $_GET
         ]);
 
         $headers = $this->request->headers->all();
