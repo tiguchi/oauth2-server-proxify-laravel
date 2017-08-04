@@ -189,8 +189,6 @@ class RequestManager
     {
         $options = array('headers' => [
             'X-Forwarded-For' => $this->createForwardedForString(),
-        ],[
-            'query' => $_GET
         ]);
 
         $headers = $this->request->headers->all();
@@ -239,7 +237,7 @@ class RequestManager
         }
 
         try {
-            return $client->request($method, $uriVal, $options);
+            return $client->request($method, $uriVal.'?'.$_SERVER['QUERY_STRING'], $options);
         } catch (ClientException $ex) {
             Log::warning("Got error response from API: ".$ex->getMessage());
 
