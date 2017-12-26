@@ -28,6 +28,8 @@ class CookieManager
     const COOKIE_TIME = 'time';
     private $info = null;
 
+    private static $previouslyCreatedCookie = null;
+
     public function __construct($info)
     {
         $this->info = $info;
@@ -41,6 +43,10 @@ class CookieManager
      */
     public function tryParseCookie($callMode)
     {
+        if (self::$previouslyCreatedCookie) {
+            return self::$previouslyCreatedCookie;
+        }
+
         $encryptedCookie = Cookie::get($this->info[CookieManager::COOKIE_NAME]);
         if (!$encryptedCookie) return false;
 
@@ -74,6 +80,8 @@ class CookieManager
      */
     public function createCookie($content)
     {
+        self::$previouslyCreatedCookie = $content;
+
         $jsonString = json_encode((array) $content, true);
         $encryptedJsonString = Crypt::encrypt($jsonString);
 
@@ -82,6 +90,8 @@ class CookieManager
         } else {
             $cookie = Cookie::make($this->info[CookieManager::COOKIE_NAME], $encryptedJsonString, $this->info[CookieManager::COOKIE_TIME]);
         }
+
+        Cookie::queue($cookie);
 
         return $cookie;
     }
