@@ -79,13 +79,13 @@ class Proxy
         $isGuestAccess = false;
         $cookieExpired = false;
 
-        if ($this->callMode !== ProxyAux::MODE_SKIP && $this->callMode !== ProxyAux::MODE_LOGIN) {
+        if ($this->callMode === ProxyAux::MODE_TOKEN || $this->callMode === ProxyAux::MODE_REFRESH) {
             if ($this->cookieManager->exists()) {
                 try {
                     $accessToken = $this->cookieManager->tryParseCookie($this->callMode);
                 } catch (CookieExpiredException $ex) {
                     // Do nothing for now, but force login later in case of a 403 during guest token access
-                    Log::warn('User access token has expired. Trying guest access token instead.');
+                    Log::warning('User access token has expired. Trying guest access token instead.');
                     $cookieExpired = true;
                 } catch (CookieInvalidException $ex) {
                     Log::error('User access token is invalid or corrupt. Trying guest access token instead.');
@@ -94,14 +94,18 @@ class Proxy
             }
 
             if (!$accessToken) {
-                $isGuestAccess = true;
                 // Enable guest access
                 $accessToken = $this->getGuestAccessToken($url);
+
+                if ($accessToken) {
+                    $isGuestAccess = true;
+                }
             }
         }
 
         //Create the new request
         $requestManager = new RequestManager($this->uri, $request, $this->clientSecrets, $this->callMode, $this->cookieManager);
+
         if ($this->useHeader) {
             $requestManager->enableHeader();
         }
@@ -142,12 +146,10 @@ class Proxy
             return \Redirect::to($this->redirectUri)->withCookie($forgottenCookie);
         }
 
-        Log::error("Cannot reauthenticate user. No redirect URI set... forwarding 401 error response from API");
-
         if ($apiErrorResponse) {
             return $this->setApiResponse($apiErrorResponse, $forgottenCookie);
         } else {
-            $apiErrorResponse = response('{"error":"401 Unauthorized}', 401)->header('Content-Type', 'application/json')->withCookie($forgottenCookie);
+            $apiErrorResponse = response('{"error":"401 Unauthorized"}', 401)->header('Content-Type', 'application/json')->withCookie($forgottenCookie);
         }
 
         return $apiErrorResponse;
@@ -211,6 +213,7 @@ class Proxy
         $hostName = parse_url($url, PHP_URL_HOST);
         if (!isset($this->clientApiHosts[$hostName])) return null;
         $clientId = $this->clientApiHosts[$hostName];
+        if (!isset($this->guestAccessTokens[$clientId])) return null;
         $success = false;
         $cacheKey = self::CLIENT_ACCESS_TOKEN_CACHE_KEY.'_'.$clientId;
         $accessToken = apcu_fetch($cacheKey, $success);

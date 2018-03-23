@@ -66,6 +66,15 @@ class CookieManager
             }
         }
 
+        // At this point we have a valid cookie.
+        // Let's check if a concurrent Proxify request had to refresh the access token while we're still dealing
+        // with the old access token. In this case we need to prevent that we try to re-retrieve a new access token
+        $concurrentlyRefreshedToken = $this->getConcurrentlyRefreshedToken($parsedCookie);
+
+        if ($concurrentlyRefreshedToken) {
+            $parsedCookie = self::$previouslyCreatedCookie = $concurrentlyRefreshedToken;
+        }
+
         return $parsedCookie;
     }
     
@@ -92,7 +101,6 @@ class CookieManager
         }
 
         Cookie::queue($cookie);
-
         return $cookie;
     }
 
@@ -129,4 +137,22 @@ class CookieManager
 
         return true;
     }
+
+    public function storeRefreshedTokenInMemory($oldAccessToken, $newParsedCookie) {
+        // 20 Seconds should be generous
+        apcu_store($oldAccessToken, $newParsedCookie, 20);
+    }
+
+    /**
+     * Checks if an access token has been already refreshed by a concurrently running request on behalf of the same
+     * user.
+     *
+     * @param $parsedCookie The user's parsed access token cookie data.
+     */
+    public function getConcurrentlyRefreshedToken($parsedCookie)
+    {
+        $accessToken = $parsedCookie[ProxyAux::ACCESS_TOKEN];
+        return apcu_fetch($accessToken);
+    }
 }
+

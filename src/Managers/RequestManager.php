@@ -76,6 +76,7 @@ class RequestManager
 
                 $cookie = $this->cookieManager->createCookie($content);
                 break;
+
             case ProxyAux::MODE_TOKEN:
                 $inputs = $this->addTokenExtraParams($inputs, $parsedCookie);
                 $proxyResponse = $this->replicateRequest($this->method, $this->uri, $inputs, $contentType);
@@ -94,6 +95,7 @@ class RequestManager
                 $proxyResponse = (isset($ret)) ? $ret['response'] : $proxyResponse;
                 $cookie = (isset($ret)) ? $ret['cookie'] : $cookie;
                 break;
+
             default:
                 $proxyResponse = $this->replicateRequest($this->method, $this->uri, $inputs, $contentType);
         }
@@ -118,20 +120,49 @@ class RequestManager
         $params = $this->addRefreshExtraParams(array(), $parsedCookie);
         $proxyResponse = $this->replicateRequest($parsedCookie[ProxyAux::COOKIE_METHOD], $parsedCookie[ProxyAux::COOKIE_URI], $params, 'application/x-www-form-urlencoded');
         $content = $proxyResponse->getParsedContent();
+        $retry = false;
 
         if ($proxyResponse->getStatusCode() === 200 && array_key_exists(ProxyAux::ACCESS_TOKEN, $content)) {
+            Log::info("Access token successfully refreshed. Retrying originally failed request...");
             $this->callMode = ProxyAux::MODE_TOKEN;
+            $oldAccessToken = $parsedCookie[ProxyAux::ACCESS_TOKEN];
             $parsedCookie[ProxyAux::ACCESS_TOKEN] = $content[ProxyAux::ACCESS_TOKEN];
             $parsedCookie[ProxyAux::REFRESH_TOKEN] = $content[ProxyAux::REFRESH_TOKEN];
-
-            $inputs = $this->addTokenExtraParams($inputs, $parsedCookie);
+            $this->cookieManager->storeRefreshedTokenInMemory($oldAccessToken, $parsedCookie);
             //Set a new cookie with updated access token and refresh token
             $cookie = $this->cookieManager->createCookie($parsedCookie);
-
-            // Retry original request that failed with 401
-            $proxyResponse = $this->replicateRequest($this->method, $this->uri, $inputs, $contentType);
+            $retry = true;
         } else {
-            $cookie = $this->cookieManager->destroyCookie();
+            $concurrentlyRefreshed = null;
+
+            // Following is crude, but we cannot synchronize requests with each other. There's the likely chance
+            // that a concurrent request already refreshed the token and therefore caused this situation. Wait
+            // for up to a second for that concurrent request to update the APCu cache
+
+            for ($i = 0; $i < 10; ++$i) {
+                $concurrentlyRefreshed = $this->cookieManager->getConcurrentlyRefreshedToken($parsedCookie);
+
+                if ($concurrentlyRefreshed) {
+                    break;
+                }
+
+                usleep(100);
+            }
+
+            if ($concurrentlyRefreshed != null) {
+                Log::warning("Token has been refreshed in concurrent request");
+                $cookie = $concurrentlyRefreshed;
+                $retry = true;
+            } else {
+                Log::warning("Refresh token invalid or has expired");
+                $cookie = $this->cookieManager->destroyCookie();
+            }
+        }
+
+        if ($retry) {
+            // Retry original request that failed with 401
+            $inputs = $this->addTokenExtraParams($inputs, $parsedCookie);
+            $proxyResponse = $this->replicateRequest($this->method, $this->uri, $inputs, $contentType);
         }
 
         return array(
@@ -238,8 +269,14 @@ class RequestManager
             }
         }
 
-        $queryParams = $this->request->query();
-        $queryString = \http_build_query($queryParams);
+        $queryParams = null;
+        $queryString = null;
+
+        if ($this->callMode !== ProxyAux::MODE_REFRESH) {
+            $queryParams = $this->request->query();
+            $queryString = \http_build_query($queryParams);
+        }
+
         $apiUri = $uriVal;
 
         if ($queryString)
