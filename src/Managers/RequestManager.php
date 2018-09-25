@@ -146,7 +146,7 @@ class RequestManager
                     break;
                 }
 
-                usleep(100);
+                usleep(100000);
             }
 
             if ($concurrentlyRefreshed != null) {
