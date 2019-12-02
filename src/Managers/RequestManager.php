@@ -244,7 +244,7 @@ class RequestManager
         }
 
         if ($method === 'GET') {
-            $options = array_add($options, 'query', $inputs);
+            // $options = array_add($options, 'query', $inputs);
         } else {
             if (Request::matchesType($contentType, 'multipart/form-data')) {
                 // Forward file upload
@@ -279,8 +279,10 @@ class RequestManager
 
         $apiUri = $uriVal;
 
-        if ($queryString)
-            $apiUri .= '?'.$queryString;
+        if ($queryString) {
+            $string = preg_replace('/%5B(?:[0-9]|[1-9][0-9]+)%5D=/', '=', $queryString);
+            $apiUri .= '?' . $string;
+        }
 
         try {
             return $client->request($method, $apiUri, $options);
